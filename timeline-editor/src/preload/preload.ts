@@ -83,6 +83,33 @@ const api = {
     ipcRenderer.on('acr:typesChanged', handler)
     return () => ipcRenderer.removeListener('acr:typesChanged', handler)
   },
+
+  // Updater
+  getVersion: (): Promise<string> =>
+    ipcRenderer.invoke('updater:getVersion'),
+  checkForUpdates: (): Promise<{
+    hasUpdate: boolean
+    currentVersion: string
+    latestVersion: string | null
+    zipUrl: string | null
+    releaseNotes: string | null
+    error?: string
+  }> =>
+    ipcRenderer.invoke('updater:check'),
+  downloadUpdate: (zipUrl: string): Promise<{ success: boolean; zipPath?: string; error?: string }> =>
+    ipcRenderer.invoke('updater:download', zipUrl),
+  installUpdate: (zipPath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('updater:install', zipPath),
+  onUpdateProgress: (callback: (progress: { percent: number; downloaded: number; total: number; speed: string }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { percent: number; downloaded: number; total: number; speed: string }) => callback(progress)
+    ipcRenderer.on('updater:progress', handler)
+    return () => ipcRenderer.removeListener('updater:progress', handler)
+  },
+  onUpdateAvailable: (callback: (info: { latestVersion: string; releaseNotes?: string }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, info: { latestVersion: string; releaseNotes?: string }) => callback(info)
+    ipcRenderer.on('updater:available', handler)
+    return () => ipcRenderer.removeListener('updater:available', handler)
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

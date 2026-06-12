@@ -27,6 +27,7 @@
     "@dagrejs/dagre": "^3.0.0",
     "@monaco-editor/react": "^4.7.0",
     "@xyflow/react": "^12.11.0",
+    "adm-zip": "^0.5.17",
     "immer": "^10.1.0",
     "monaco-editor": "^0.55.1",
     "react": "^19.2.7",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
+    "@types/adm-zip": "^0.5.8",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/uuid": "^10.0.0",

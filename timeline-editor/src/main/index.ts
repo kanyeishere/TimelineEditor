@@ -3,6 +3,7 @@ import { join } from 'path'
 import { readFile, writeFile, watch, stat, readdir, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { readAllAcrDlls } from './dotnetMeta'
+import { checkForUpdates, downloadUpdate, installUpdate, getVersion } from './updater' // eslint-disable-line @typescript-eslint/no-unused-vars
 
 let mainWindow: BrowserWindow | null = null
 
@@ -484,6 +485,38 @@ ipcMain.handle('app:getBackupDir', async (_event, filePath: string) => {
   return join(filePath, '..', 'bak')
 })
 
+// --- Updater IPC ---
+
+ipcMain.handle('updater:getVersion', async () => {
+  return getVersion()
+})
+
+ipcMain.handle('updater:check', async () => {
+  return checkForUpdates()
+})
+
+ipcMain.handle('updater:download', async (_event, zipUrl: string) => {
+  try {
+    const zipPath = await downloadUpdate(zipUrl, (progress) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater:progress', progress)
+      }
+    })
+    return { success: true, zipPath }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('updater:install', async (_event, zipPath: string) => {
+  try {
+    await installUpdate(zipPath)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
 // App ready
 app.whenReady().then(async () => {
   await loadAeConfig()
@@ -494,6 +527,19 @@ app.whenReady().then(async () => {
       createWindow()
     }
   })
+
+  // Silent auto-check on startup
+  try {
+    const release = await checkForUpdates()
+    if (release.hasUpdate && release.latestVersion) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater:available', {
+          latestVersion: release.latestVersion,
+          releaseNotes: release.releaseNotes
+        })
+      }
+    }
+  } catch { /* silent */ }
 })
 
 app.on('window-all-closed', () => {

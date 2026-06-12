@@ -8,9 +8,11 @@ interface ToolbarProps {
   showAcrViewer: boolean
   fileName: string | null
   isDirty: boolean
+  updateAvailable?: boolean
+  onCheckUpdate?: () => void
 }
 
-export function Toolbar({ onOpen, onSave, onSaveAs, onToggleScript, showScript, onToggleAcrViewer, showAcrViewer, fileName, isDirty }: ToolbarProps) {
+export function Toolbar({ onOpen, onSave, onSaveAs, onToggleScript, showScript, onToggleAcrViewer, showAcrViewer, fileName, isDirty, updateAvailable, onCheckUpdate }: ToolbarProps) {
   const handleSelectAeDir = async () => {
     const result = await window.electronAPI.selectAeDirectory()
     if (!result.cancelled) {
@@ -59,6 +61,24 @@ export function Toolbar({ onOpen, onSave, onSaveAs, onToggleScript, showScript, 
       </button>
 
       <div className="flex-1" />
+
+      {/* Check for Updates */}
+      {onCheckUpdate && (
+        <button
+          onClick={onCheckUpdate}
+          className={`px-2 py-1 text-sm rounded transition-colors relative ${
+            updateAvailable
+              ? 'bg-green-800 hover:bg-green-700 text-green-300'
+              : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+          }`}
+          title="检查更新"
+        >
+          🔄 更新
+          {updateAvailable && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border border-gray-800" />
+          )}
+        </button>
+      )}
 
       {/* Select AE Directory */}
       <button

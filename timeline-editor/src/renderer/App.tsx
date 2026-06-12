@@ -3,6 +3,7 @@ import { Toolbar } from './components/Toolbar'
 import { Sidebar } from './components/Sidebar'
 import { TreeView } from './components/TreeView'
 import { PropertyPanel } from './panels/PropertyPanel'
+import { UpdateDialog } from './components/UpdateDialog'
 
 class ErrorBoundary extends Component<{ children: React.ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null }
@@ -47,6 +48,8 @@ export default function App() {
   const [sidebarWidth, setSidebarWidth] = useState(240)
   const [panelWidth, setPanelWidth] = useState(340)
   const [scriptHeight, setScriptHeight] = useState(300)
+  const [showUpdate, setShowUpdate] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState(false)
   const isResizingSidebar = useRef(false)
   const isResizingPanel = useRef(false)
   const isResizingScript = useRef(false)
@@ -101,7 +104,17 @@ export default function App() {
     loadAcrTypes()
   }, [loadSpellLookup, loadAcrTypes])
 
-  // Listen for ACR type changes
+  // Listen for auto-check update available notification
+  useEffect(() => {
+    const unsub = window.electronAPI.onUpdateAvailable(() => {
+      setUpdateAvailable(true)
+    })
+    return unsub
+  }, [])
+
+  const handleCheckUpdate = useCallback(() => {
+    setShowUpdate(true)
+  }, [])
   useEffect(() => {
     const unsub = window.electronAPI.onAcrTypesChanged(() => {
       loadAcrTypes()
@@ -122,6 +135,8 @@ export default function App() {
         showAcrViewer={showAcrViewer}
         fileName={fileName}
         isDirty={isDirty}
+        updateAvailable={updateAvailable}
+        onCheckUpdate={handleCheckUpdate}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
@@ -188,6 +203,7 @@ export default function App() {
       </div>
       <StatusBar />
       <KeyboardShortcuts />
+      {showUpdate && <UpdateDialog onClose={() => { setShowUpdate(false); setUpdateAvailable(false) }} />}
     </div>
     </ErrorBoundary>
   )

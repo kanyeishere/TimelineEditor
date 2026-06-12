@@ -46,6 +46,21 @@ interface ElectronAPI {
   }>
   listAcrDlls(): Promise<{ success: boolean; error?: string; dlls: string[] }>
   onAcrTypesChanged(callback: () => void): () => void
+
+  // Updater
+  getVersion(): Promise<string>
+  checkForUpdates(): Promise<{
+    hasUpdate: boolean
+    currentVersion: string
+    latestVersion: string | null
+    zipUrl: string | null
+    releaseNotes: string | null
+    error?: string
+  }>
+  downloadUpdate(zipUrl: string): Promise<{ success: boolean; zipPath?: string; error?: string }>
+  installUpdate(zipPath: string): Promise<{ success: boolean; error?: string }>
+  onUpdateProgress(callback: (progress: { percent: number; downloaded: number; total: number; speed: string }) => void): () => void
+  onUpdateAvailable(callback: (info: { latestVersion: string; releaseNotes?: string }) => void): () => void
 }
 
 declare global {
