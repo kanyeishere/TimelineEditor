@@ -89,6 +89,11 @@ export function ScriptPanel() {
           value={localScript}
           onChange={(value) => setLocalScript(value || '')}
           onMount={handleEditorMount}
+          loading={
+            <div className="h-full flex items-center justify-center bg-gray-900 text-gray-500 text-sm">
+              Loading editor...
+            </div>
+          }
           options={{
             minimap: { enabled: false },
             fontSize: 12,

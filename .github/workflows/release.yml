@@ -41,22 +41,17 @@ jobs:
         id: artifacts
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path timeline-editor/release -Recurse -Filter "*.exe" | Select-Object -First 1
-          if ($exe) {
-            echo "exe_path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
-            echo "exe_name=$($exe.Name)" >> $env:GITHUB_OUTPUT
-            echo "Found: $($exe.Name)"
-          } else {
-            # Fallback: zip the win-unpacked dir
-            $dir = Get-ChildItem -Path timeline-editor/release -Directory -Filter "win-unpacked" | Select-Object -First 1
-            if ($dir) {
-              $zipName = "TimelineEditor-${{ github.event.inputs.version }}-portable.zip"
-              Compress-Archive -Path "$($dir.FullName)/*" -DestinationPath "timeline-editor/release/$zipName"
-              echo "zip_path=timeline-editor/release/$zipName" >> $env:GITHUB_OUTPUT
-              echo "zip_name=$zipName" >> $env:GITHUB_OUTPUT
-              echo "Found dir, zipped as: $zipName"
-            }
+          $dir = Get-ChildItem -Path timeline-editor/release -Directory -Filter "win-unpacked" | Select-Object -First 1
+          if (-not $dir) {
+            Write-Error "win-unpacked directory not found"
+            exit 1
           }
+          $zipName = "TimelineEditor-v${{ github.event.inputs.version }}-portable.zip"
+          $zipPath = "timeline-editor/release/$zipName"
+          Compress-Archive -Path "$($dir.FullName)/*" -DestinationPath $zipPath
+          echo "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
+          echo "zip_name=$zipName" >> $env:GITHUB_OUTPUT
+          Write-Host "Zipped win-unpacked -> $zipName"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -66,7 +61,6 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ${{ steps.artifacts.outputs.exe_path }}
             ${{ steps.artifacts.outputs.zip_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
