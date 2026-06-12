@@ -1,0 +1,68 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: timeline-editor/package-lock.json
+
+      - name: Install dependencies
+        working-directory: timeline-editor
+        run: npm ci
+
+      - name: Build & Package
+        working-directory: timeline-editor
+        run: npm run dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find release artifacts
+        id: artifacts
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path timeline-editor/release -Recurse -Filter "*.exe" | Select-Object -First 1
+          if ($exe) {
+            echo "exe_path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+            echo "exe_name=$($exe.Name)" >> $env:GITHUB_OUTPUT
+            echo "Found: $($exe.Name)"
+          } else {
+            # Fallback: zip the win-unpacked dir
+            $dir = Get-ChildItem -Path timeline-editor/release -Directory -Filter "win-unpacked" | Select-Object -First 1
+            if ($dir) {
+              $zipName = "TimelineEditor-${{ github.event.inputs.version }}-portable.zip"
+              Compress-Archive -Path "$($dir.FullName)/*" -DestinationPath "timeline-editor/release/$zipName"
+              echo "zip_path=timeline-editor/release/$zipName" >> $env:GITHUB_OUTPUT
+              echo "zip_name=$zipName" >> $env:GITHUB_OUTPUT
+              echo "Found dir, zipped as: $zipName"
+            }
+          }
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: Timeline Editor v${{ github.event.inputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            ${{ steps.artifacts.outputs.exe_path }}
+            ${{ steps.artifacts.outputs.zip_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
