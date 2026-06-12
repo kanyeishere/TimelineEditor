@@ -25,6 +25,9 @@ export interface EditorStore {
   selectedNodeId: number | null
   selectedScriptNodeId: number | null
 
+  // Clipboard
+  clipboard: TreeNode | null
+
   // Spell lookup
   spellLookup: Record<string, { n: string; t: number }> | null
   loadSpellLookup: () => Promise<void>
@@ -54,6 +57,8 @@ export interface EditorStore {
   moveNode: (nodeId: number, newParentId: number, index: number) => void
   toggleNodeEnabled: (nodeId: number) => void
   duplicateNode: (nodeId: number) => void
+  copyNode: (nodeId: number) => void
+  pasteNode: (targetNodeId: number | null) => void
 
   // Undo/Redo
   undo: () => void
@@ -281,6 +286,7 @@ export const useStore = create<EditorStore>()(
     isDirty: false,
     selectedNodeId: null,
     selectedScriptNodeId: null,
+    clipboard: null,
     undoStack: [],
     redoStack: [],
     maxUndo: 50,
@@ -460,6 +466,75 @@ export const useStore = create<EditorStore>()(
           const idx = parentN.Childs!.findIndex(c => c.Id === nodeId)
           parentN.Childs!.splice(idx + 1, 0, clone)
         }
+        s.selectedNodeId = newId
+        s.isDirty = true
+      })
+    },
+
+    copyNode: (nodeId) => {
+      const state = get()
+      if (!state.doc || nodeId === 0) return
+      const node = findNodeById(state.doc, nodeId)
+      if (!node) return
+      // Deep-clone into clipboard (outside Immer)
+      const snapshot = JSON.parse(JSON.stringify(node)) as TreeNode
+      set({ clipboard: snapshot })
+    },
+
+    pasteNode: (targetNodeId) => {
+      const state = get()
+      if (!state.doc || !state.clipboard) return
+
+      set((s) => {
+        if (!s.doc || !s.clipboard) return
+        pushUndo(s)
+
+        // Deep-clone clipboard and assign new IDs
+        const clone = JSON.parse(JSON.stringify(s.clipboard)) as TreeNode
+        const newId = getNextId(s.doc)
+        const idMap = new Map<number, number>()
+        idMap.set(clone.Id, newId)
+        function reId(n: TreeNode, idMap: Map<number, number>) {
+          const oldId = n.Id
+          n.Id = idMap.get(oldId)!
+          if ('Childs' in n && Array.isArray(n.Childs)) {
+            for (const child of n.Childs) {
+              const cid = getNextId(s.doc!)
+              idMap.set(child.Id, cid)
+              reId(child, idMap)
+            }
+          }
+        }
+        reId(clone, idMap)
+
+        if (targetNodeId === null || targetNodeId === 0) {
+          // Paste at root level
+          s.doc.TreeRoot.Childs.push(clone)
+        } else {
+          // Paste after target as a sibling
+          const parentId = findParentId(s.doc, targetNodeId)
+          if (parentId != null) {
+            // Non-root parent
+            const parentN = findNodeById(s.doc, parentId)
+            if (parentN && 'Childs' in parentN && Array.isArray(parentN.Childs)) {
+              const idx = parentN.Childs!.findIndex(c => c.Id === targetNodeId)
+              if (idx >= 0) {
+                parentN.Childs!.splice(idx + 1, 0, clone)
+              } else {
+                parentN.Childs!.push(clone)
+              }
+            }
+          } else {
+            // parentId is null/undefined — target is a direct child of root
+            const idx = s.doc.TreeRoot.Childs.findIndex(c => c.Id === targetNodeId)
+            if (idx >= 0) {
+              s.doc.TreeRoot.Childs.splice(idx + 1, 0, clone)
+            } else {
+              s.doc.TreeRoot.Childs.push(clone)
+            }
+          }
+        }
+
         s.selectedNodeId = newId
         s.isDirty = true
       })

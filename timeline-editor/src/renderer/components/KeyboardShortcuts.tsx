@@ -9,6 +9,9 @@ export function KeyboardShortcuts() {
   const getNodeById = useStore(s => s.getNodeById)
   const toggleNodeEnabled = useStore(s => s.toggleNodeEnabled)
   const duplicateNode = useStore(s => s.duplicateNode)
+  const copyNode = useStore(s => s.copyNode)
+  const pasteNode = useStore(s => s.pasteNode)
+  const clipboard = useStore(s => s.clipboard)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -81,6 +84,24 @@ export function KeyboardShortcuts() {
         return
       }
 
+      // Ctrl+C: Copy selected node
+      if (ctrl && e.key === 'c') {
+        if (selectedNodeId !== null && selectedNodeId !== 0) {
+          e.preventDefault()
+          copyNode(selectedNodeId)
+        }
+        return
+      }
+
+      // Ctrl+V: Paste after selected node, or at root
+      if (ctrl && e.key === 'v') {
+        if (clipboard) {
+          e.preventDefault()
+          pasteNode(selectedNodeId)
+        }
+        return
+      }
+
       // Ctrl+F: Focus search (future)
       if (ctrl && e.key === 'f') {
         e.preventDefault()
@@ -91,7 +112,7 @@ export function KeyboardShortcuts() {
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [selectedNodeId, undo, redo, deleteNode, toggleNodeEnabled, duplicateNode])
+  }, [selectedNodeId, undo, redo, deleteNode, toggleNodeEnabled, duplicateNode, copyNode, pasteNode, clipboard])
 
   return null
 }

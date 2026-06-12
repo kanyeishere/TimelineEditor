@@ -57,8 +57,11 @@ export function ContextMenu({ menu, hideMenu }: {
   const addChild = useStore(s => s.addChild)
   const deleteNode = useStore(s => s.deleteNode)
   const duplicateNode = useStore(s => s.duplicateNode)
+  const copyNode = useStore(s => s.copyNode)
+  const pasteNode = useStore(s => s.pasteNode)
   const toggleNodeEnabled = useStore(s => s.toggleNodeEnabled)
   const getNodeById = useStore(s => s.getNodeById)
+  const clipboard = useStore(s => s.clipboard)
 
   const node = menu.nodeId !== null ? getNodeById(menu.nodeId) : null
 
@@ -81,6 +84,18 @@ export function ContextMenu({ menu, hideMenu }: {
     }
     hideMenu()
   }, [menu.nodeId, duplicateNode, hideMenu])
+
+  const handleCopy = useCallback(() => {
+    if (menu.nodeId !== null && menu.nodeId !== 0) {
+      copyNode(menu.nodeId)
+    }
+    hideMenu()
+  }, [menu.nodeId, copyNode, hideMenu])
+
+  const handlePaste = useCallback(() => {
+    pasteNode(menu.nodeId)
+    hideMenu()
+  }, [menu.nodeId, pasteNode, hideMenu])
 
   const handleToggle = useCallback(() => {
     if (menu.nodeId !== null) {
@@ -114,6 +129,19 @@ export function ContextMenu({ menu, hideMenu }: {
         </button>
       ))}
 
+      {/* Paste — always available when clipboard has content */}
+      {clipboard && (
+        <>
+          <div className="border-t border-gray-700 my-1" />
+          <button
+            onClick={handlePaste}
+            className="w-full text-left px-3 py-1 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+          >
+            📋 Paste{menu.nodeId != null && menu.nodeId !== 0 ? ' after this node' : ' at root'}
+          </button>
+        </>
+      )}
+
       {node && (
         <>
           <div className="border-t border-gray-700 my-1" />
@@ -129,6 +157,13 @@ export function ContextMenu({ menu, hideMenu }: {
             disabled={menu.nodeId === 0}
           >
             📋 Duplicate
+          </button>
+          <button
+            onClick={handleCopy}
+            className="w-full text-left px-3 py-1 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+            disabled={menu.nodeId === 0}
+          >
+            📝 Copy
           </button>
           <button
             onClick={handleDelete}
