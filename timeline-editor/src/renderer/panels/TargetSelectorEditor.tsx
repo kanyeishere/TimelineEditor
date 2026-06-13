@@ -55,9 +55,13 @@ export function TargetSelectorEditor({
       {sel.Target === 5 && (
         <div>
           <div className="text-[9px] text-gray-500 mb-0.5">队伍成员索引</div>
-          <input type="number" value={sel.PMIndex ?? 0}
-            onChange={e => update('PMIndex', parseInt(e.target.value) || 0)}
-            className="field-input w-20" />
+          <select value={sel.PMIndex ?? 0}
+            onChange={e => update('PMIndex', parseInt(e.target.value))}
+            className="field-input">
+            {Array.from({ length: 8 }, (_, i) => (
+              <option key={i} value={i}>小队列表{i + 1}</option>
+            ))}
+          </select>
         </div>
       )}
 
