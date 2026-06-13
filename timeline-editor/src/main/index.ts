@@ -511,6 +511,8 @@ ipcMain.handle('updater:download', async (_event, zipUrl: string) => {
 ipcMain.handle('updater:install', async (_event, zipPath: string) => {
   try {
     await installUpdate(zipPath)
+    // Schedule quit AFTER returning the response so the IPC invoke completes cleanly
+    setTimeout(() => app.quit(), 100)
     return { success: true }
   } catch (err) {
     return { success: false, error: String(err) }

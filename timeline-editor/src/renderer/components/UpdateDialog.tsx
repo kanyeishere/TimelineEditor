@@ -100,9 +100,7 @@ export function UpdateDialog({ onClose }: UpdateDialogProps) {
     setErrorMsg('')
     try {
       await window.electronAPI.installUpdate(zipPath)
-      // app.quit() is called in main process, but if it fails:
-      setErrorMsg('Install failed - app did not exit')
-      setPhase('error')
+      // Main process will quit the app shortly — don't show error
     } catch (err) {
       setErrorMsg(String(err))
       setPhase('error')

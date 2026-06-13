@@ -229,51 +229,106 @@ export async function installUpdate(zipPath: string): Promise<void> {
   const zip = new AdmZip(zipPath)
   zip.extractAllTo(stagingDir, true)
 
-  // Find the executable in staging
-  const { readdir } = await import('fs/promises')
+  // Handle zip wrapper folder (e.g. GitHub release zips often have a root folder)
+  const { readdir, stat } = await import('fs/promises')
+  let effectiveStagingDir = stagingDir
   const stagingFiles = await readdir(stagingDir)
-  const exeName = stagingFiles.find(f => f.endsWith('.exe')) || 'Timeline Editor.exe'
+  // If the zip contains exactly one top-level folder and no files, use that folder as the effective staging
+  const topEntries = await Promise.all(
+    stagingFiles.map(async (f) => ({ name: f, stat: await stat(join(stagingDir, f)) }))
+  )
+  const topFolders = topEntries.filter(e => e.stat.isDirectory())
+  const topFiles = topEntries.filter(e => e.stat.isFile())
+  if (topFolders.length === 1 && topFiles.length === 0) {
+    effectiveStagingDir = join(stagingDir, topFolders[0].name)
+  }
 
-  // The app directory is where the current exe lives
-  const appDir = process.resourcesPath
-  // For dir target builds, process.execPath is <appDir>/<exeName>
-  // process.resourcesPath is the resources dir within the asar/app
-  // We need path.dirname(process.execPath) for the actual app directory
-  const targetDir = join(dirname(process.execPath))
+  // Recursively find the executable in the effective staging dir
+  async function findExe(dir: string): Promise<string | null> {
+    const entries = await readdir(dir)
+    for (const entry of entries) {
+      const full = join(dir, entry)
+      const s = await stat(full)
+      if (s.isFile() && entry.endsWith('.exe')) return entry
+      if (s.isDirectory()) {
+        const found = await findExe(full)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  const exeName = (await findExe(effectiveStagingDir)) || 'Timeline Editor.exe'
+
+  // For dir target builds, process.execPath points to the exe directly
+  const targetDir = dirname(process.execPath)
 
   // Write the bootstrap PowerShell script
   const scriptPath = join(tmpDir, 'install-update.ps1')
+  // Escape backslashes for the PowerShell here-string
+  const psStagingDir = effectiveStagingDir.replace(/\\/g, '\\\\')
+  const psTargetDir = targetDir.replace(/\\/g, '\\\\')
+  const psTmpDir = tmpDir.replace(/\\/g, '\\\\')
+  const psExeName = exeName.replace(/'/g, "''")
+  const psStagingLen = effectiveStagingDir.length
+
   const scriptContent = `# Timeline Editor Update Installer
 $ErrorActionPreference = 'Stop'
 
-# Wait for old process to fully exit
-Start-Sleep -Seconds 2
+$stagingDir = '${psStagingDir}'
+$targetDir  = '${psTargetDir}'
+$exeName    = '${psExeName}'
+$tmpDir     = '${psTmpDir}'
+$stagingLen = ${psStagingLen}
 
-try {
-    Write-Host "Copying new files..."
-    Get-ChildItem -Path "${stagingDir}" -Recurse | ForEach-Object {
-        $relative = $_.FullName.Substring(${stagingDir.length})
-        $target = Join-Path "${targetDir}" $relative
-        $targetDir2 = Split-Path $target -Parent
-        if (-not (Test-Path $targetDir2)) {
-            New-Item -ItemType Directory -Path $targetDir2 -Force | Out-Null
+# Wait for old process to fully exit and release file handles
+Start-Sleep -Seconds 3
+
+function Copy-UpdateFiles {
+    Get-ChildItem -Path $stagingDir -Recurse | ForEach-Object {
+        $relative = $_.FullName.Substring($stagingLen)
+        $target = Join-Path $targetDir $relative
+        $targetParent = Split-Path $target -Parent
+        if (-not (Test-Path $targetParent)) {
+            New-Item -ItemType Directory -Path $targetParent -Force | Out-Null
         }
         if (-not $_.PSIsContainer) {
             Copy-Item $_.FullName $target -Force
         }
     }
+}
+
+try {
+    Write-Host "Copying new files..."
+
+    # Retry up to 3 times in case old process still holds file handles
+    $retries = 0
+    $copied = $false
+    while (-not $copied -and $retries -lt 3) {
+        try {
+            Copy-UpdateFiles
+            $copied = $true
+        } catch {
+            $retries++
+            if ($retries -lt 3) {
+                Write-Host "Copy attempt $retries failed, retrying in 2s..."
+                Start-Sleep -Seconds 2
+            } else {
+                throw
+            }
+        }
+    }
 
     Write-Host "Update complete. Starting new version..."
-    Start-Process -FilePath (Join-Path "${targetDir}" "${exeName}")
+    Start-Process -FilePath (Join-Path $targetDir $exeName)
+
+    # Cleanup temp files (only on success)
+    Start-Sleep -Seconds 1
+    Remove-Item -Path $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 catch {
-    Write-Host "Update failed: $_"
-    Read-Host "Press Enter to exit"
+    Write-Host "ERROR: Update failed: $_"
+    Write-Host "Temp files kept at: $tmpDir"
     exit 1
-}
-finally {
-    # Cleanup temp files
-    Remove-Item -Path "${tmpDir}" -Recurse -Force -ErrorAction SilentlyContinue
 }
 `
 
@@ -292,6 +347,6 @@ finally {
     windowsHide: true
   }).unref()
 
-  // Quit the app
-  app.quit()
+  // NOTE: app.quit() is called in the IPC handler AFTER returning the response,
+  // to avoid breaking the IPC invoke.
 }
