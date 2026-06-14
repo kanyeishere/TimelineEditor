@@ -1,28 +1,33 @@
 /// <reference types="vite/client" />
 
-interface ElectronFileResult {
+declare global {
+  interface ElectronFileResult {
   success: boolean
   content?: string
   error?: string
 }
 
-interface ElectronDirEntry {
+
+  interface ElectronDirEntry {
   name: string
   isDirectory: boolean
 }
 
-interface ElectronDirListResult {
+
+  interface ElectronDirListResult {
   success: boolean
   entries?: ElectronDirEntry[]
   error?: string
 }
 
-interface ElectronDialogResult {
+
+  interface ElectronDialogResult {
   cancelled: boolean
   filePath: string | null
 }
 
-interface ElectronAPI {
+
+  interface ElectronAPI {
   readFile(filePath: string): Promise<ElectronFileResult>
   writeFile(filePath: string, content: string): Promise<{ success: boolean; error?: string }>
   fileExists(filePath: string): Promise<boolean>
@@ -63,7 +68,6 @@ interface ElectronAPI {
   onUpdateAvailable(callback: (info: { latestVersion: string; releaseNotes?: string }) => void): () => void
 }
 
-declare global {
   interface Window {
     electronAPI: ElectronAPI
   }
